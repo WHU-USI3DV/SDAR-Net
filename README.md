@@ -42,5 +42,5 @@ python train.py
 ## Acknowledgement
 The repository is based on [U-Shape](https://github.com/LintaoPeng/U-shape_Transformer_for_Underwater_Image_Enhancement), some of the code is borrowed from:
 - [Semi-UIR](https://github.com/Huang-ShiRui/Semi-UIR)
-- 
+
 Thanks for their opensourceing.
