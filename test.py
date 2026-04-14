@@ -14,21 +14,14 @@ import matplotlib.patches as patches
 import math
 from SDAR import SDAR_Net
 np.set_printoptions(suppress=True)
+
+path='/data/UnderwaterDatasets/UIEB-new/test/'#change to your path
+
 def latex_to_pil(tex_string, fontsize=20, dpi=300,t_color='white'):
-    """
-    将 LaTeX 字符串转换为带半透明底的 Pillow Image 对象
-    """
-    # 1. 创建 figure 和 axes
-    # 注意：这里 figsize 设得很小，但 bbox_inches='tight' 会根据内容自动调整最终大小
     fig = plt.figure(figsize=(0.01, 0.01))
     ax = fig.add_axes([0, 0, 1, 1])
     ax.axis('off')
     
-    # 2. 定义文本框的样式
-    # facecolor: 背景颜色，'black' 表示黑色
-    # alpha: 透明度，0.5 表示半透明 (0是全透明, 1是完全不透明)
-    # edgecolor: 边框颜色，'none' 表示没有边框
-    # pad: 内边距，文字与背景框边缘的距离，单位是点
     text_props = {
         'bbox': {
             'facecolor': 'black', 
@@ -38,14 +31,9 @@ def latex_to_pil(tex_string, fontsize=20, dpi=300,t_color='white'):
         }
     }
     
-    # 3. 渲染文字
-    # 将定义好的 text_props 解包传入 ax.text
-    # 注意：Matplotlib 的 LaTeX 需要包裹在 $ 符号中
     t = ax.text(0, 0, f"{tex_string}", fontsize=fontsize, color=t_color,fontweight='medium', **text_props)
     
-    # 4. 将 figure 保存到内存缓冲区
     buf = io.BytesIO()
-    # bbox_inches='tight' 确保裁剪掉多余空白，pad_inches=0 紧贴边缘
     plt.savefig(buf, format='png', dpi=dpi, bbox_inches='tight', pad_inches=0.0, transparent=True)
     plt.close(fig)
     
@@ -54,52 +42,35 @@ def latex_to_pil(tex_string, fontsize=20, dpi=300,t_color='white'):
 
 def latex_to_pil_fixed_size(tex_string, fontsize=20, dpi=300, t_color='white', 
                             width_px=300, height_px=100):
-    """
-    将 LaTeX 字符串转换为指定【像素宽度和高度】的 Pillow Image 对象
-    """
-    # 1. 将像素转换为英寸 (Matplotlib 内部单位)
     width_in = width_px / dpi
     height_in = height_px / dpi
     
-    # 2. 创建固定尺寸的 figure
     fig = plt.figure(figsize=(width_in, height_in))
     
-    # 3. 添加坐标轴，占满整个画布 (0,0 是左下角，1,1 是右上角)
     ax = fig.add_axes([0, 0, 1, 1])
     ax.axis('off')
     
-    # 4. 绘制背景框
-    # 这里我们画一个填满整个画布的矩形
-    # xy=(0,0) 是左下角，width 和 height 是画布的物理尺寸
     p = patches.FancyBboxPatch(
         (0, 0), width_in, height_in, 
-        boxstyle=patches.BoxStyle("Round", pad=0), # pad=0 因为我们自己控制画布大小
+        boxstyle=patches.BoxStyle("Round", pad=0),
         linewidth=0,
         facecolor='white',
         alpha=0.0,
-        transform=ax.transData # 使用数据坐标系
+        transform=ax.transData
     )
     ax.add_patch(p)
-    
-    # 5. 渲染文字 (居中显示)
-    # 文字位置设为画布中心 (width_in/2, height_in/2)
-    # 使用 ax.transData 确保坐标单位是英寸
+
     ax.text(width_in / 2, height_in / 2, tex_string, 
             fontsize=fontsize, 
             color=t_color, 
-            ha='center',      # 水平居中
-            va='center',      # 垂直居中
+            ha='center',      
+            va='center',      
             fontweight='bold',
             transform=ax.transData)
-
-    # 6. 设置坐标轴范围
-    # 这一步是为了告诉 matplotlib 我们的画布范围是 0~width_in 和 0~height_in
     ax.set_xlim(0, width_in)
     ax.set_ylim(0, height_in)
 
-    # 7. 保存到内存
     buf = io.BytesIO()
-    # 注意：这里去掉了 bbox_inches='tight'，以确保输出尺寸严格等于 figsize
     plt.savefig(buf, format='png', dpi=dpi, pad_inches=0.0, transparent=True)
     plt.close(fig)
     
@@ -110,17 +81,14 @@ def get_model_pic_with_text2(output,target_256,logit=None):
     output=output[0].mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
     test_s=output
     test_s=Image.fromarray(test_s.astype(np.uint8))
-    # draw = ImageDraw.Draw(test_s)
     psnr256=compute_psnr(output,target_256)
     text = "%.2f dB"%(psnr256)
 
     text_psnr=latex_to_pil_fixed_size(text,fontsize=8.2,width_px=256,height_px=35,t_color="black")
-    # 获取文字尺寸
     text_width, text_height = text_psnr.size
-    # 计算文字位置（居中于图片底部）
     width, height = test_s.size
     x = (width - text_width) // 2
-    y = height #- text_height  # 在图片底部留一些边距
+    y = height
     new_image = Image.new('RGBA', (width, height + text_height), (255, 255, 255, 1))
     new_image.paste(test_s,(0,0))
     new_image.paste(text_psnr,(x,y),text_psnr)
@@ -173,7 +141,7 @@ generator=SDAR_Net(num_branch=num_b).cuda()
 generator.load_state_dict(torch.load("./pre_trains/UIEB/ckpt-best.pth"))
 generator.eval()
 save_path="./test_outs_"
-path='/data/UnderwaterDatasets/UIEB-new/test/'
+
 path_list = os.listdir(path+"input/")
 path_list.sort()
 i=1
