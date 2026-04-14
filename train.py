@@ -21,6 +21,10 @@ from tqdm import tqdm
 from adamp import AdamP
 from diffusers.utils import load_image
 font = ImageFont.load_default(size=36)
+
+train_set_path='/data/UnderwaterDatasets/UIEB-new/train/'#change to your path
+test_set_path='/data/UnderwaterDatasets/UIEB-new/test/'#change to your path
+
 def get_model_pic_with_text(U_shape_output,target_256,logit=None):
     U_shape_output=U_shape_output[0].mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
     test_s=U_shape_output
@@ -29,17 +33,14 @@ def get_model_pic_with_text(U_shape_output,target_256,logit=None):
     psnr256=compute_psnr(U_shape_output,target_256)
     text = "PSNR: %.4f"%(psnr256)
 
-    # 获取文字尺寸
     bbox = draw.textbbox((0, 0), text, font=font)
     text_width = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
 
-    # 计算文字位置（居中于图片底部）
     width, height = test_s.size
     x = (width - text_width) // 2
-    y = height - text_height - 10  # 在图片底部留一些边距
+    y = height - text_height - 10  
 
-    # 绘制文字
     draw.text((x, y), text, fill=(255, 255, 255), font=font)
     if logit!=None:
         weights=F.softmax(logit,dim=-1)[0]
@@ -73,14 +74,10 @@ def compute_psnr_batch(pred: torch.Tensor, target: torch.Tensor, max_val: float 
     psnr = 20 * torch.log10(max_val / torch.sqrt(mse))
     return psnr.unsqueeze(-1)  # [B, 1]
 
-def test(generator,pre=False):
+def test(generator,pre=False,path='/data/UnderwaterDatasets/UIEB-new/test/'):
     if pre:
         generator.load_state_dict(torch.load(DIR_CHECKPOINTS+"/'ckpt-best.pth'"))
-
     generator.eval()
-
-    path='/data/UnderwaterDatasets/'+dataset_name+'-new/test/'#要改
-
     path_list = os.listdir(path+"input/")
     path_list.sort()
     PSNR=[]
@@ -148,32 +145,18 @@ def recon_losses(output,GT):
     return loss_final
 
 def select_best(output_list, gt,max_idx):
-
     B = gt.shape[0]
-
-    # Step 2: 找出需要训练的样本（伪标签 ≠ 0）
     valid_mask = (max_idx != 0)                 # [B], bool
     num_valid = valid_mask.sum().item()
 
     if num_valid == 0:
-        # 返回空张量（shape 一致），或 None
-        # 这里返回两个空张量，shape 为 [0, C, H, W]
-        # empty = torch.empty(0, *gt.shape[1:], device=gt.device)
         return None,None
-
-    # Step 3: 对 valid 样本，选择对应的 output
-    # 堆叠 outputs: [B, 3, C, H, W]
     outputs_cat = torch.stack(output_list, dim=1)  # [B, 3, C, H, W]
-
-    # 只处理 valid 样本
-    # valid_indices = torch.where(valid_mask)[0]     # [num_valid]
     valid_max_idx = max_idx[valid_mask]           # [num_valid]
 
-    # gather 对应输出
     idx_expanded = valid_max_idx.view(-1, 1, 1, 1, 1).expand(
         -1, 1, *gt.shape[1:]
-    )  # [num_valid, 1, C, H, W]
-
+    )
     valid_outputs = outputs_cat[valid_mask]       # [num_valid, 3, C, H, W]
     best_output = torch.gather(valid_outputs, dim=1, index=idx_expanded).squeeze(1)  # [num_valid, C, H, W]
     gt_valid = gt[valid_mask]                     # [num_valid, C, H, W]
@@ -186,7 +169,7 @@ torch.set_default_tensor_type(torch.FloatTensor)
 save_dir="./project_logs/UIE"
 dataset_name="UIEB"
 bs=2
-train_loader=get_data(batch_size=bs,path="/data/UnderwaterDatasets/UIEB-new/train/", img_size=256)
+train_loader=get_data(batch_size=bs,path=train_set_path, img_size=256)
 loader=train_loader
 MSE = nn.MSELoss(size_average=True).cuda()
 SSIM = pytorch_ssim.SSIM().cuda()
@@ -324,7 +307,7 @@ for epoch in range(epochs,n_epochs):
             else:
                 t.set_postfix(loss='%s' % ['%.4f' % l for l in [loss_final.item()]])
     scheduler_G.step()
-    test_psnr,test_psnr2,test_musiq=test(model)
+    test_psnr,test_psnr2,test_musiq=test(model,path=test_set_path)
     if epoch>route_ep:
         test_best=test_psnr
     elif epoch==route_ep:
