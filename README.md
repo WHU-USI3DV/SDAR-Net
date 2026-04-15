@@ -1,5 +1,5 @@
 # SDAR-Net
-This repository contains the official implementation of the paper Style-Decoupled Adaptive Routing Network for Underwater Image Enhancement
+This repository contains the official implementation of the paper Style-Decoupled Adaptive Routing Network for Underwater Image Enhancement [arXiv](https://arxiv.org/abs/2604.12257)
 
 ## Get Started
 
@@ -25,13 +25,15 @@ We provide the divided dataset for UIEB and LSUI. This division refers to [WF-di
 
 Extract code:123x
 
+Different dataset splits can cause fluctuations in training and testing results.
+
 ### Evaluation
 ```
 # Specify the dataset path and checkpoint path in test.py
 
 python test.py
 ```
-
+The network module contains layers with random operations (NonLocalSparseAttention), so the test result metrics may have slight fluctuations.
 ### Training
 ```
 # Specify the dataset path and checkpoint path in train.py
